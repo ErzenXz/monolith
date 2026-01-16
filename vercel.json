@@ -1,14 +1,9 @@
 {
-  "outputDirectory": ".",
   "functions": {
     "api/**/*.ts": {
       "maxDuration": 300,
-      "memory": 2048
-    }
-  },
-  "build": {
-    "env": {
-      "NODE_VERSION": "24"
+      "memory": 2048,
+      "runtime": "nodejs20.x"
     }
   }
 }
