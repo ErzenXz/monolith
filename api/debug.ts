@@ -2,7 +2,7 @@ export const config = {
   runtime: 'nodejs',
 };
 
-export default async function handler(request: Request): Promise<Response> {
+export default async function handler(_request: Request): Promise<Response> {
   const results: Record<string, string> = {};
 
   // Test sharp
