@@ -33,7 +33,7 @@ export class VideoCompressor {
     const metadata = await this.getMetadata(tempPath);
 
     for (const quality of qualities) {
-      const outputPath = `${tempPath}-${quality}.mp4`;
+      const outputPath = `${tempPath}-${quality}.${format}`;
 
       const width = this.calculateWidth(metadata.width, quality);
       const height = this.calculateHeight(metadata.height, quality);
@@ -55,7 +55,7 @@ export class VideoCompressor {
         quality: `${quality}p`,
         buffer: compressedBuffer,
         size: compressedBuffer.length,
-        format: 'mp4',
+        format,
         dimensions: { width, height },
         metadata: {
           originalSize: buffer.length,

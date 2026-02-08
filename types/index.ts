@@ -369,20 +369,6 @@ export interface CompressionJobResponse {
 // Form Data Types
 // =============================================================================
 
-export interface ParsedFormData {
-  fields: Record<string, string | string[] | undefined>;
-  files: Record<string, FormidableFile | FormidableFile[] | undefined>;
-}
-
-export interface FormidableFile {
-  filepath: string;
-  originalFilename?: string;
-  name?: string;
-  mimetype?: string;
-  type?: string;
-  size: number;
-}
-
 export interface ParsedFile {
   buffer: Buffer;
   name: string;

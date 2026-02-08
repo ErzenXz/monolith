@@ -1,8 +1,15 @@
-export const config = {
-  runtime: 'edge',
-};
+export default function handler(request: Request): Response {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization',
+      },
+    });
+  }
 
-export default function handler(_request: Request): Response {
   const maxFileSize = parseInt(process.env.MAX_FILE_SIZE ?? '') || 500 * 1024 * 1024;
   const timeout = parseInt(process.env.TIMEOUT ?? '') || 300000;
   const apiKeys = process.env.API_KEYS ? process.env.API_KEYS.split(',') : [];
@@ -27,6 +34,7 @@ export default function handler(_request: Request): Response {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
     },
   });
 }

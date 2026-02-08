@@ -1,0 +1,91 @@
+# Media Compressor — AI Coding Context
+
+## Project Overview
+Serverless media compression API on Vercel. TypeScript strict mode. Node.js 20+.
+Compresses images (Sharp), video (FFmpeg), and audio (FFmpeg) with async job queuing.
+
+## Architecture
+- **API layer:** Vercel serverless functions in `api/` — Web API Request/Response
+- **Job queue:** Upstash QStash sends POST to `/api/jobs/process` with `{ jobId }`
+- **State:** Vercel KV stores job records as JSON under `job:{id}` keys
+- **Storage:** Vercel Blob stores compressed files with public URLs
+- **Dashboard:** Static HTML in `public/index.html` — Tailwind CDN, vanilla JS
+
+## Key Patterns
+
+### Endpoint structure
+```typescript
+const handler: RequestHandler = async (request, apiKey) => {
+  if (request.method === 'OPTIONS') return corsResponse();
+  // ... handler logic
+  return successResponse({ ... });
+};
+export default withRateLimit(withAuth(handler));
+```
+
+### File upload parsing
+Use `parseNativeFormData(request)` from `lib/utils.ts`. Returns `{ file: ParsedFile | null, fields: Record<string, string | undefined> }`. No formidable/multer — uses native Web API `request.formData()`.
+
+### Response helpers
+All in `lib/utils.ts`:
+- `successResponse(data, status?)` — wraps in `{ success: true, ...data }` with CORS
+- `errorResponse(message, status?)` — wraps in `{ success: false, error }` with CORS
+- `corsResponse()` — 204 with CORS headers for OPTIONS preflight
+
+### Input validation
+- `safeJsonParse(raw, label)` — try/catch JSON.parse with descriptive error
+- `validateNumberArray(value, label, min, max)` — validates array of numbers in range
+
+### Job lifecycle
+1. Client POSTs file to `/api/compress/{type}` → enqueued in QStash + stored in KV
+2. QStash calls `/api/jobs/process` with `{ jobId }`
+3. Process endpoint dispatches to `processJob()` in the relevant compress module
+4. Compressor runs Sharp/FFmpeg → uploads results to Blob → saves to KV
+5. Client polls `/api/jobs/status/{id}` until `completed` or `failed`
+
+### File routing (Vercel)
+- `api/compress/image.ts` → POST /api/compress/image
+- `api/compress/video.ts` → POST /api/compress/video
+- `api/compress/audio.ts` → POST /api/compress/audio
+- `api/jobs/status/[id].ts` → GET /api/jobs/status/:id
+- `api/jobs/delete/[id].ts` → DELETE /api/jobs/delete/:id
+- `api/jobs/process.ts` → POST /api/jobs/process (internal, QStash)
+- `api/jobs/webhook.ts` → POST /api/jobs/webhook
+- `api/health.ts` → GET /api/health
+
+## Type System
+All types in `types/index.ts`. Key types:
+- `Job` — full job record (id, type, payload, status, results)
+- `JobPayload` — `{ file: { buffer: string (base64), name, type, size }, options, apiKey, extension }`
+- `ParsedFile` — `{ buffer: Buffer, name: string, type: string, size: number }`
+- `RequestHandler` — `(request: Request, apiKey?: string) => Promise<Response>`
+- `ImageCompressionOptions`, `VideoCompressionOptions`, `AudioCompressionOptions`
+
+## Rules
+- Always use `successResponse()` / `errorResponse()` — they include CORS headers
+- Always handle OPTIONS method in endpoints accessed from browser
+- Use `safeJsonParse()` + `validateNumberArray()` for user-provided JSON fields
+- File uploads: always check `if (!file)` after parsing
+- Video/audio compressors write to `/tmp` — always clean up temp files
+- Job IDs format: `job_{timestamp}_{random}`
+- KV keys: `job:{jobId}`, `queue:{priority}`, `ratelimit:{apiKey|ip}`
+
+## Dependencies
+- `sharp` — image processing (parallel via Promise.all)
+- `fluent-ffmpeg` — video/audio (sequential, writes to /tmp)
+- `@upstash/qstash` — job queue
+- `@vercel/blob` — file storage
+- `@vercel/kv` — job state + rate limiting (deprecated, migrating to @upstash/redis)
+
+## Environment Variables
+Required: API_KEYS, UPSTASH_QSTASH_TOKEN, BLOB_READ_WRITE_TOKEN, KV_REST_API_URL, KV_REST_API_TOKEN
+Optional: MAX_FILE_SIZE, TIMEOUT, WEBHOOK_SECRET
+
+## Commands
+```bash
+pnpm typecheck    # tsc --noEmit
+pnpm lint         # eslint
+pnpm format       # prettier
+vercel dev        # local dev (run directly, not via pnpm dev)
+vercel --prod     # production deploy
+```

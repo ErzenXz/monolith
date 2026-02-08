@@ -93,7 +93,7 @@ async function createFormDataWithFile(
   // Read file as blob
   const stream = createReadStream(filePath);
   const buffer = await streamToBuffer(stream);
-  const blob = new Blob([buffer], {
+  const blob = new Blob([new Uint8Array(buffer)], {
     type: getMimeType(filePath)
   });
 

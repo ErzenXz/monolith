@@ -42,6 +42,7 @@ export function withRateLimit(handler: RequestHandler): RequestHandler {
           status: 429,
           headers: {
             'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
             'Retry-After': Math.ceil((rateLimit.resetAfter ?? 60000) / 1000).toString(),
           },
         }

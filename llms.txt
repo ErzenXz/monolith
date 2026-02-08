@@ -1,0 +1,93 @@
+# Media Compressor
+
+> A serverless media compression API built with TypeScript for Vercel.
+
+## Overview
+
+Media Compressor is a production-ready API that compresses images, videos, and audio files. It runs on Vercel serverless functions with async job processing via Upstash QStash. Compressed results are stored in Vercel Blob with public URLs.
+
+Supports: JPEG, PNG, WebP, AVIF, GIF, MP4, WebM, MOV, MP3, AAC, Opus, WAV.
+
+## API Endpoints
+
+POST /api/compress/image — Upload and compress an image (multipart/form-data)
+POST /api/compress/video — Upload and compress a video (multipart/form-data)
+POST /api/compress/audio — Upload and compress audio (multipart/form-data)
+GET  /api/jobs/status/{id} — Check job status and get results
+DELETE /api/jobs/delete/{id} — Delete a job and its files
+GET  /api/health — Health check (no auth required)
+POST /api/jobs/process — Internal QStash worker
+POST /api/jobs/webhook — Webhook receiver
+
+## Authentication
+
+All endpoints except /api/health require an API key via header:
+- X-API-Key: your_key
+- Authorization: Bearer your_key
+
+## Image Compression Parameters
+
+- file (required): Image file
+- qualities: JSON array of numbers 1-100, e.g. [80, 60, 40]
+- thumbnails: JSON array of pixel sizes, e.g. [200, 400]
+- format: "webp" | "jpeg" | "png" | "avif" (default: "webp")
+- stripMetadata: "true" | "false" (default: "true")
+
+## Video Compression Parameters
+
+- file (required): Video file
+- qualities: JSON array of resolution heights, e.g. [1080, 720, 480]
+- thumbnails: Number of thumbnail frames, e.g. 5 (max 20)
+- format: "mp4" | "webm" | "mov" (default: "mp4")
+
+## Audio Compression Parameters
+
+- file (required): Audio file
+- bitrates: JSON array of kbps values, e.g. [320, 192, 128]
+- format: "mp3" | "aac" | "opus" | "wav" (default: "mp3")
+
+## Response Format
+
+Success: { "success": true, "jobId": "...", "status": "queued", "estimatedTime": "..." }
+Error:   { "success": false, "error": "..." }
+
+Job status response includes: jobId, status, type, progress, createdAt, completedAt, error, results.
+
+## Job Lifecycle
+
+queued → processing (with progress 0-100%) → completed | failed
+
+Results contain: original file URL/size, compressed variants with URLs/sizes, thumbnails, compression ratio.
+
+## Tech Stack
+
+- TypeScript 5.8+ (strict mode)
+- Sharp for image processing
+- FFmpeg via fluent-ffmpeg for video/audio
+- Upstash QStash for async job queue
+- Vercel Blob for file storage
+- Vercel KV for job state and rate limiting
+
+## Environment Variables
+
+Required: API_KEYS, UPSTASH_QSTASH_TOKEN, BLOB_READ_WRITE_TOKEN, KV_REST_API_URL, KV_REST_API_TOKEN
+Optional: MAX_FILE_SIZE (default 500MB), TIMEOUT (default 300000ms), WEBHOOK_SECRET
+
+## Example: Compress an Image
+
+```bash
+curl -X POST \
+  -H "X-API-Key: YOUR_KEY" \
+  -F "file=@photo.jpg" \
+  -F 'qualities=[80, 60]' \
+  -F "format=webp" \
+  https://your-app.vercel.app/api/compress/image
+```
+
+Then poll: GET /api/jobs/status/{jobId}
+
+## Source Code
+
+Repository: https://github.com/your-username/media-compressor
+License: MIT
+Dashboard: Visit the root URL (/) of your deployment

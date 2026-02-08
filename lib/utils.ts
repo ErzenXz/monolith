@@ -1,29 +1,43 @@
-import formidable from 'formidable';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
-import type { ParsedFormData, ParsedFile, MediaType, ApiResponse } from '../types/index.js';
+import type { ParsedFile, MediaType, ApiResponse } from '../types/index.js';
 
-export async function parseFormData(request: Request): Promise<ParsedFormData> {
-  const form = formidable({
-    maxFileSize: config.maxFileSize,
-    maxTotalFileSize: config.maxFileSize,
-    keepExtensions: true,
-    allowEmptyFiles: false,
-  });
+export interface NativeFormData {
+  file: ParsedFile | null;
+  fields: Record<string, string | undefined>;
+}
 
-  return new Promise((resolve, reject) => {
-    // @ts-expect-error - formidable expects IncomingMessage but works with Request
-    form.parse(request, (err, fields, files) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({
-          fields: fields as ParsedFormData['fields'],
-          files: files as ParsedFormData['files'],
-        });
-      }
-    });
-  });
+export async function parseNativeFormData(request: Request): Promise<NativeFormData> {
+  const formData = await request.formData();
+  const fileEntry = formData.get('file');
+
+  let file: ParsedFile | null = null;
+
+  if (fileEntry && fileEntry instanceof Blob) {
+    const arrayBuffer = await fileEntry.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const name =
+      'name' in fileEntry && typeof fileEntry.name === 'string' ? fileEntry.name : 'file';
+    const type =
+      fileEntry.type || 'application/octet-stream';
+
+    if (buffer.length > config.maxFileSize) {
+      throw new Error(
+        `File size exceeds maximum allowed size of ${config.maxFileSize / 1024 / 1024}MB`
+      );
+    }
+
+    file = { buffer, name, type, size: buffer.length };
+  }
+
+  const fields: Record<string, string | undefined> = {};
+  for (const [key, value] of formData.entries()) {
+    if (typeof value === 'string') {
+      fields[key] = value;
+    }
+  }
+
+  return { file, fields };
 }
 
 export function parseFileFromBuffer(
@@ -87,6 +101,37 @@ export function getContentType(extension: string): string {
   return EXTENSION_TO_CONTENT_TYPE[extension.toLowerCase()] ?? 'application/octet-stream';
 }
 
+export function validateNumberArray(
+  value: unknown,
+  label: string,
+  min: number,
+  max: number
+): number[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON array of numbers`);
+  }
+  for (const v of value) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < min || v > max) {
+      throw new Error(`${label} values must be numbers between ${min} and ${max}`);
+    }
+  }
+  if (value.length === 0) {
+    throw new Error(`${label} must not be empty`);
+  }
+  if (value.length > 10) {
+    throw new Error(`${label} must have at most 10 entries`);
+  }
+  return value as number[];
+}
+
+export function safeJsonParse(raw: string, label: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error(`Invalid JSON for ${label}: ${raw}`);
+  }
+}
+
 export function validateFileSize(size: number): boolean {
   if (size > config.maxFileSize) {
     throw new Error(
@@ -110,11 +155,22 @@ export function calculateCompressionRatio(originalSize: number, compressedSize: 
   return `${ratio.toFixed(2)}%`;
 }
 
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization',
+};
+
+export function corsResponse(): Response {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
 function createJsonResponse<T>(data: T, status: number): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
+      ...CORS_HEADERS,
     },
   });
 }
@@ -193,8 +249,10 @@ export async function handleWebhook(
 
   const hmac = createHmac('sha256', secret);
   const digest = hmac.update(JSON.stringify(payload)).digest('hex');
+  const sigBuf = Buffer.from(signature);
+  const digestBuf = Buffer.from(digest);
 
-  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+  if (sigBuf.length !== digestBuf.length || !timingSafeEqual(sigBuf, digestBuf)) {
     throw new Error('Invalid signature');
   }
 

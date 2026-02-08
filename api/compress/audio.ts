@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { kv } from '@vercel/kv';
 import { withAuth } from '../../middleware/auth.js';
 import { withRateLimit } from '../../middleware/ratelimit.js';
@@ -6,11 +5,14 @@ import { storage } from '../../lib/storage.js';
 import { queue } from '../../lib/queue.js';
 import { compressor } from '../../lib/compressor/index.js';
 import {
-  parseFormData,
+  parseNativeFormData,
   getMediaType,
   getFileExtension,
   successResponse,
   errorResponse,
+  corsResponse,
+  safeJsonParse,
+  validateNumberArray,
 } from '../../lib/utils.js';
 import type {
   Job,
@@ -20,55 +22,47 @@ import type {
 } from '../../types/index.js';
 
 const handler: RequestHandler = async (request, apiKey) => {
+  if (request.method === 'OPTIONS') return corsResponse();
   if (request.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
 
   try {
-    const formData = await parseFormData(request);
-    const fileField = formData.files.file;
-    const file = Array.isArray(fileField) ? fileField[0] : fileField;
+    const formData = await parseNativeFormData(request);
+    const file = formData.file;
 
     if (!file) {
       return errorResponse('No file provided');
     }
 
-    const buffer = readFileSync(file.filepath);
-    const mediaType = getMediaType(file.mimetype ?? file.type ?? '');
+    const buffer = file.buffer;
+    const mediaType = getMediaType(file.type);
 
     if (mediaType !== 'audio') {
       return errorResponse('Invalid file type. Expected an audio file.');
     }
 
-    const extension = getFileExtension(file.mimetype ?? file.type ?? '');
-    const bitratesField = formData.fields.bitrates;
-    const formatsField = formData.fields.formats;
-    const sampleRatesField = formData.fields.sampleRates;
-    const formatField = formData.fields.format;
+    const extension = getFileExtension(file.type);
 
     const options: AudioCompressionOptions = {
-      bitrates: bitratesField
-        ? JSON.parse(Array.isArray(bitratesField) ? (bitratesField[0] ?? '[]') : bitratesField)
+      bitrates: formData.fields.bitrates
+        ? validateNumberArray(safeJsonParse(formData.fields.bitrates, 'bitrates'), 'bitrates', 8, 512)
         : undefined,
-      formats: formatsField
-        ? JSON.parse(Array.isArray(formatsField) ? (formatsField[0] ?? '[]') : formatsField)
+      formats: formData.fields.formats
+        ? (safeJsonParse(formData.fields.formats, 'formats') as AudioCompressionOptions['formats'])
         : undefined,
-      sampleRates: sampleRatesField
-        ? JSON.parse(
-            Array.isArray(sampleRatesField) ? (sampleRatesField[0] ?? '[]') : sampleRatesField
-          )
+      sampleRates: formData.fields.sampleRates
+        ? validateNumberArray(safeJsonParse(formData.fields.sampleRates, 'sampleRates'), 'sampleRates', 8000, 192000)
         : undefined,
       defaultFormat:
-        ((Array.isArray(formatField)
-          ? formatField[0]
-          : formatField) as AudioCompressionOptions['defaultFormat']) ?? 'mp3',
+        (formData.fields.format as AudioCompressionOptions['defaultFormat']) ?? 'mp3',
     };
 
     const jobResult = await queue.enqueue('audio', {
       file: {
         buffer: buffer.toString('base64'),
-        name: file.originalFilename ?? file.name ?? 'audio',
-        type: file.mimetype ?? file.type ?? 'audio/mpeg',
+        name: file.name,
+        type: file.type,
         size: buffer.length,
       },
       options,

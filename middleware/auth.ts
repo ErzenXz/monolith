@@ -18,7 +18,7 @@ export async function authMiddleware(request: Request): Promise<AuthResult> {
     };
   }
 
-  const normalizedApiKey = apiKey.replace('Bearer ', '').trim();
+  const normalizedApiKey = apiKey.replace(/^bearer\s+/i, '').trim();
   const isValid = config.apiKeys.includes(normalizedApiKey);
 
   if (!isValid) {
@@ -39,9 +39,13 @@ export function withAuth(handler: RequestHandler): RequestHandler {
     const auth = await authMiddleware(request);
 
     if (!auth.success) {
-      return new Response(JSON.stringify({ error: auth.error }), {
+      return new Response(JSON.stringify({ success: false, error: auth.error }), {
         status: 401,
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization',
+        },
       });
     }
 

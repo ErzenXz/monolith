@@ -21,63 +21,57 @@ export class ImageCompressor {
       stripMetadata = config.compression.image.stripMetadata
     } = options;
 
-    const image = sharp(buffer);
-    const metadata = await image.metadata();
+    const metadata = await sharp(buffer).metadata();
 
-    // Apply metadata stripping if requested
-    const processedImage = stripMetadata ? image.withMetadata({}) : image;
+    const [compressed, thumbnailResults] = await Promise.all([
+      Promise.all(
+        qualities.map(async (quality) => {
+          const img = sharp(buffer);
+          const processed = stripMetadata ? img.withMetadata({}) : img;
+          const result = await processed
+            .toFormat(format as keyof sharp.FormatEnum, { quality })
+            .toBuffer();
 
-    const results: (CompressedFile | { type: 'thumbnails'; items: Thumbnail[] })[] = [];
+          return {
+            quality: `${quality}%`,
+            buffer: result,
+            size: result.length,
+            format,
+            metadata: {
+              width: metadata.width ?? 0,
+              height: metadata.height ?? 0,
+              originalSize: buffer.length
+            }
+          } satisfies CompressedFile;
+        })
+      ),
+      thumbnails && thumbnails.length > 0
+        ? Promise.all(
+            thumbnails.map(async (size) => {
+              const img = sharp(buffer);
+              const processed = stripMetadata ? img.withMetadata({}) : img;
+              const result = await processed
+                .resize(size, size, {
+                  fit: 'inside',
+                  withoutEnlargement: true
+                })
+                .toFormat(format as keyof sharp.FormatEnum, { quality: 80 })
+                .toBuffer();
 
-    for (const quality of qualities) {
-      const compressed = await processedImage
-        .clone()
-        .toFormat(format as keyof sharp.FormatEnum, { quality })
-        .toBuffer();
-
-      results.push({
-        quality: `${quality}%`,
-        buffer: compressed,
-        size: compressed.length,
-        format,
-        metadata: {
-          width: metadata.width ?? 0,
-          height: metadata.height ?? 0,
-          originalSize: buffer.length
-        }
-      });
-    }
-
-    if (thumbnails && thumbnails.length > 0) {
-      const thumbnailResults: Thumbnail[] = [];
-
-      for (const size of thumbnails) {
-        const thumbnail = await processedImage
-          .clone()
-          .resize(size, size, {
-            fit: 'inside',
-            withoutEnlargement: true
-          })
-          .toFormat(format as keyof sharp.FormatEnum, { quality: 80 })
-          .toBuffer();
-
-        thumbnailResults.push({
-          size: `${size}px`,
-          buffer: thumbnail,
-          sizeBytes: thumbnail.length,
-          format,
-          dimensions: {
-            width: Math.min(metadata.width ?? size, size),
-            height: Math.min(metadata.height ?? size, size)
-          }
-        });
-      }
-
-      results.push({
-        type: 'thumbnails',
-        items: thumbnailResults
-      });
-    }
+              return {
+                size: `${size}px`,
+                buffer: result,
+                sizeBytes: result.length,
+                format,
+                dimensions: {
+                  width: Math.min(metadata.width ?? size, size),
+                  height: Math.min(metadata.height ?? size, size)
+                }
+              } satisfies Thumbnail;
+            })
+          )
+        : Promise.resolve([] as Thumbnail[])
+    ]);
 
     return {
       success: true,
@@ -87,12 +81,8 @@ export class ImageCompressor {
         format: metadata.format ?? 'unknown',
         size: buffer.length
       },
-      compressed: results.filter((r): r is CompressedFile => !('type' in r)),
-      thumbnails:
-        results.find(
-          (r): r is { type: 'thumbnails'; items: Thumbnail[] } =>
-            'type' in r && r.type === 'thumbnails'
-        )?.items ?? []
+      compressed,
+      thumbnails: thumbnailResults
     };
   }
 

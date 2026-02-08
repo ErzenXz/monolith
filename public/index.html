@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Media Compressor - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .drop-zone.dragover { border-color: #0ea5e9; background: rgba(14, 165, 233, 0.05); }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
+    .status-pulse { position: relative; }
+    .status-pulse::before { content: ''; position: absolute; inset: -3px; border-radius: 50%; animation: pulse-ring 1.5s ease-out infinite; }
+    .status-pulse.healthy::before { background: #22c55e; }
+    .progress-bar { transition: width 0.5s ease; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800 bg-gray-950/80 backdrop-blur-sm sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        </div>
+        <h1 class="text-lg font-semibold">Media Compressor</h1>
+        <span class="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">v2.0.0</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <div id="health-indicator" class="flex items-center gap-2 text-sm text-gray-400">
+          <span class="w-2 h-2 rounded-full bg-gray-600"></span>
+          Checking...
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Toast container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[100] space-y-2"></div>
+
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
+    <!-- URL Guidance Banner -->
+    <section id="url-banner" class="bg-brand-900/30 border border-brand-800 rounded-xl p-4 fade-in">
+      <div class="flex items-start gap-3">
+        <svg class="w-5 h-5 text-brand-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        <div class="text-sm">
+          <p class="text-brand-300 font-medium mb-1">Getting Started</p>
+          <p class="text-brand-400/80 text-xs leading-relaxed">This dashboard auto-detects your API URL from the browser address bar. When deployed to Vercel, visit <code class="bg-brand-900/50 px-1 rounded">https://your-app.vercel.app</code> to access this page. Enter your API key below and click <strong>Test Connection</strong> to verify everything works.</p>
+        </div>
+        <button onclick="this.closest('section').remove()" class="text-brand-600 hover:text-brand-400 text-xs shrink-0">Dismiss</button>
+      </div>
+    </section>
+
+    <!-- API Key Config -->
+    <section class="bg-gray-900 rounded-xl border border-gray-800 p-6 fade-in">
+      <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Configuration</h2>
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex-1">
+          <label for="api-key" class="block text-xs text-gray-500 mb-1">API Key</label>
+          <input id="api-key" type="password" placeholder="Enter your API key" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent placeholder-gray-600" />
+        </div>
+        <div class="flex-1">
+          <label for="api-url" class="block text-xs text-gray-500 mb-1">API Base URL</label>
+          <input id="api-url" type="text" placeholder="https://your-app.vercel.app" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent placeholder-gray-600" />
+        </div>
+        <div class="flex items-end">
+          <button onclick="checkHealth()" class="px-4 py-2 bg-brand-600 hover:bg-brand-700 rounded-lg text-sm font-medium transition-colors">Test Connection</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Service Status -->
+    <section id="status-section" class="hidden bg-gray-900 rounded-xl border border-gray-800 p-6 fade-in">
+      <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Service Status</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="status-grid"></div>
+    </section>
+
+    <!-- Job Lookup -->
+    <section class="bg-gray-900 rounded-xl border border-gray-800 p-6 fade-in">
+      <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Lookup Job</h2>
+      <div class="flex gap-3">
+        <input id="lookup-id" type="text" placeholder="Enter job ID (e.g. job_1705312800000_abc123)" class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-gray-600" />
+        <button onclick="lookupJob()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors">Lookup</button>
+      </div>
+      <div id="lookup-result" class="hidden mt-4"></div>
+    </section>
+
+    <!-- Upload -->
+    <section class="bg-gray-900 rounded-xl border border-gray-800 p-6 fade-in">
+      <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">Compress Media</h2>
+
+      <div id="drop-zone" class="drop-zone border-2 border-dashed border-gray-700 rounded-xl p-10 text-center cursor-pointer hover:border-gray-600 transition-colors">
+        <svg class="w-10 h-10 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+        <p class="text-gray-400 text-sm mb-1">Drop your file here or <span class="text-brand-400 underline">browse</span></p>
+        <p class="text-gray-600 text-xs">Images, videos, or audio files up to 500MB</p>
+        <input id="file-input" type="file" class="hidden" accept="image/*,video/*,audio/*" />
+      </div>
+
+      <!-- File Preview -->
+      <div id="file-preview" class="hidden mt-4 bg-gray-800 rounded-lg p-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div id="file-icon" class="w-10 h-10 rounded-lg bg-gray-700 flex items-center justify-center text-lg">🖼️</div>
+            <div>
+              <p id="file-name" class="text-sm font-medium"></p>
+              <p id="file-meta" class="text-xs text-gray-500"></p>
+            </div>
+          </div>
+          <button onclick="clearFile()" class="text-gray-500 hover:text-gray-300 text-sm">Remove</button>
+        </div>
+      </div>
+
+      <!-- Compression Options -->
+      <div id="options-panel" class="hidden mt-4 space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Output Format</label>
+            <select id="output-format" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Qualities</label>
+            <input id="qualities" type="text" placeholder="e.g. 80,60,40" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-gray-600" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1" id="thumb-label">Thumbnails</label>
+            <input id="thumbnails" type="text" placeholder="e.g. 200,400" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder-gray-600" />
+          </div>
+        </div>
+        <button onclick="startCompression()" id="compress-btn" class="w-full py-3 bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600 rounded-lg font-medium text-sm transition-all">
+          Start Compression
+        </button>
+      </div>
+    </section>
+
+    <!-- Jobs List -->
+    <section class="bg-gray-900 rounded-xl border border-gray-800 p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-medium text-gray-400 uppercase tracking-wider">Jobs</h2>
+        <button onclick="clearJobs()" class="text-xs text-gray-600 hover:text-gray-400 transition-colors">Clear All</button>
+      </div>
+      <div id="jobs-list" class="space-y-3">
+        <p id="no-jobs" class="text-sm text-gray-600 text-center py-6">No compression jobs yet. Upload a file to get started.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-gray-800 mt-12 py-6 text-center text-xs text-gray-600">
+    Media Compressor &mdash; Open Source &middot; MIT License
+  </footer>
+
+<script>
+// State
+let selectedFile = null;
+const jobs = [];
+let pollingIntervals = {};
+
+// DOM
+const apiKeyInput = document.getElementById('api-key');
+const apiUrlInput = document.getElementById('api-url');
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const filePreview = document.getElementById('file-preview');
+const optionsPanel = document.getElementById('options-panel');
+
+// Auto-detect base URL
+apiUrlInput.value = window.location.origin;
+
+// Load saved API key
+const savedKey = localStorage.getItem('mc_api_key');
+if (savedKey) apiKeyInput.value = savedKey;
+apiKeyInput.addEventListener('change', () => localStorage.setItem('mc_api_key', apiKeyInput.value));
+
+const savedUrl = localStorage.getItem('mc_api_url');
+if (savedUrl) apiUrlInput.value = savedUrl;
+apiUrlInput.addEventListener('change', () => localStorage.setItem('mc_api_url', apiUrlInput.value));
+
+// Helpers
+function getBaseUrl() { return apiUrlInput.value.replace(/\/$/, ''); }
+function getApiKey() { return apiKeyInput.value.trim(); }
+function formatBytes(b) {
+  if (b === 0) return '0 B';
+  const k = 1024, s = ['B','KB','MB','GB'];
+  const i = Math.floor(Math.log(b) / Math.log(k));
+  return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
+}
+
+function getMediaType(file) {
+  if (file.type.startsWith('image/')) return 'image';
+  if (file.type.startsWith('video/')) return 'video';
+  if (file.type.startsWith('audio/')) return 'audio';
+  return 'unknown';
+}
+
+function getTypeIcon(type) {
+  return { image: '🖼️', video: '🎬', audio: '🎵' }[type] || '📄';
+}
+
+function getStatusColor(status) {
+  return {
+    queued: 'bg-yellow-500/20 text-yellow-400',
+    processing: 'bg-blue-500/20 text-blue-400',
+    completed: 'bg-green-500/20 text-green-400',
+    failed: 'bg-red-500/20 text-red-400'
+  }[status] || 'bg-gray-500/20 text-gray-400';
+}
+
+function getStatusDot(status) {
+  return {
+    queued: 'bg-yellow-400',
+    processing: 'bg-blue-400',
+    completed: 'bg-green-400',
+    failed: 'bg-red-400'
+  }[status] || 'bg-gray-400';
+}
+
+// Health Check
+async function checkHealth() {
+  const indicator = document.getElementById('health-indicator');
+  const section = document.getElementById('status-section');
+  try {
+    const res = await fetch(getBaseUrl() + '/api/health');
+    const data = await res.json();
+    const ok = data.status === 'healthy';
+    indicator.innerHTML = `<span class="w-2 h-2 rounded-full ${ok ? 'bg-green-400 status-pulse healthy' : 'bg-red-400'}"></span>${ok ? 'Healthy' : 'Unhealthy'}`;
+    section.classList.remove('hidden');
+    const grid = document.getElementById('status-grid');
+    grid.innerHTML = `
+      ${statusCard('Queue', data.services?.queue)}
+      ${statusCard('Storage', data.services?.storage)}
+      ${statusCard('Rate Limit', data.services?.rateLimit)}
+      ${statusCard('API Keys', data.config?.apiKeysConfigured)}
+    `;
+  } catch (e) {
+    indicator.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-400"></span>Offline';
+    section.classList.add('hidden');
+  }
+}
+
+function statusCard(name, ok) {
+  return `<div class="bg-gray-800 rounded-lg p-3 flex items-center gap-3">
+    <span class="w-2.5 h-2.5 rounded-full ${ok ? 'bg-green-400' : 'bg-red-400'}"></span>
+    <div>
+      <p class="text-xs text-gray-500">${name}</p>
+      <p class="text-sm font-medium ${ok ? 'text-green-400' : 'text-red-400'}">${ok ? 'Connected' : 'Not configured'}</p>
+    </div>
+  </div>`;
+}
+
+// Drag & Drop
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', (e) => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  selectedFile = file;
+  const type = getMediaType(file);
+
+  document.getElementById('file-icon').textContent = getTypeIcon(type);
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-meta').textContent = `${formatBytes(file.size)} · ${file.type}`;
+  filePreview.classList.remove('hidden');
+  optionsPanel.classList.remove('hidden');
+
+  // Update format options
+  const formatSelect = document.getElementById('output-format');
+  const qualitiesInput = document.getElementById('qualities');
+  const thumbInput = document.getElementById('thumbnails');
+  const thumbLabel = document.getElementById('thumb-label');
+
+  if (type === 'image') {
+    formatSelect.innerHTML = '<option value="webp">WebP</option><option value="jpeg">JPEG</option><option value="png">PNG</option><option value="avif">AVIF</option>';
+    qualitiesInput.placeholder = 'e.g. 80,60,40';
+    thumbInput.placeholder = 'e.g. 200,400';
+    thumbLabel.textContent = 'Thumbnail Sizes (px)';
+    thumbInput.classList.remove('hidden');
+    thumbInput.parentElement.classList.remove('hidden');
+  } else if (type === 'video') {
+    formatSelect.innerHTML = '<option value="mp4">MP4</option><option value="webm">WebM</option><option value="mov">MOV</option>';
+    qualitiesInput.placeholder = 'e.g. 1080,720,480';
+    thumbInput.placeholder = 'e.g. 3';
+    thumbLabel.textContent = 'Thumbnails Count';
+  } else if (type === 'audio') {
+    formatSelect.innerHTML = '<option value="mp3">MP3</option><option value="aac">AAC</option><option value="opus">Opus</option><option value="wav">WAV</option>';
+    qualitiesInput.placeholder = 'e.g. 320,192,128';
+    thumbInput.parentElement.classList.add('hidden');
+  }
+}
+
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  filePreview.classList.add('hidden');
+  optionsPanel.classList.add('hidden');
+}
+
+// Compression
+async function startCompression() {
+  if (!selectedFile) return;
+  if (!getApiKey()) { alert('Please enter your API key'); return; }
+
+  const type = getMediaType(selectedFile);
+  const format = document.getElementById('output-format').value;
+  const qualitiesRaw = document.getElementById('qualities').value.trim();
+  const thumbsRaw = document.getElementById('thumbnails').value.trim();
+
+  const btn = document.getElementById('compress-btn');
+  btn.textContent = 'Uploading...';
+  btn.disabled = true;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('format', format);
+
+    if (qualitiesRaw) {
+      const vals = qualitiesRaw.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+      if (type === 'audio') {
+        formData.append('bitrates', JSON.stringify(vals));
+      } else {
+        formData.append('qualities', JSON.stringify(vals));
+      }
+    }
+
+    if (thumbsRaw) {
+      if (type === 'image') {
+        const sizes = thumbsRaw.split(',').map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+        formData.append('thumbnails', JSON.stringify(sizes));
+      } else if (type === 'video') {
+        formData.append('thumbnails', thumbsRaw.trim());
+      }
+    }
+
+    const endpoint = `${getBaseUrl()}/api/compress/${type}`;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'X-API-Key': getApiKey() },
+      body: formData
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.jobId) {
+      addJob({
+        id: data.jobId,
+        type,
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        status: 'queued',
+        progress: 0,
+        createdAt: new Date().toISOString(),
+        estimatedTime: data.estimatedTime
+      });
+      clearFile();
+    } else {
+      alert('Error: ' + (data.error || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Request failed: ' + e.message);
+  } finally {
+    btn.textContent = 'Start Compression';
+    btn.disabled = false;
+  }
+}
+
+// Job Management
+function addJob(job) {
+  jobs.unshift(job);
+  renderJobs();
+  startPolling(job.id);
+}
+
+function startPolling(jobId) {
+  if (pollingIntervals[jobId]) return;
+  pollingIntervals[jobId] = setInterval(async () => {
+    try {
+      const res = await fetch(`${getBaseUrl()}/api/jobs/status/${jobId}`, {
+        headers: { 'X-API-Key': getApiKey() }
+      });
+      const data = await res.json();
+      if (!data.success) return;
+
+      const job = jobs.find(j => j.id === jobId);
+      if (!job) return;
+
+      job.status = data.status;
+      job.progress = data.progress ?? 0;
+      job.error = data.error;
+      job.results = data.results;
+      job.completedAt = data.completedAt;
+
+      renderJobs();
+
+      if (data.status === 'completed' || data.status === 'failed') {
+        clearInterval(pollingIntervals[jobId]);
+        delete pollingIntervals[jobId];
+      }
+    } catch (e) {
+      // Silently retry
+    }
+  }, 3000);
+}
+
+function clearJobs() {
+  Object.keys(pollingIntervals).forEach(id => clearInterval(pollingIntervals[id]));
+  pollingIntervals = {};
+  jobs.length = 0;
+  renderJobs();
+}
+
+function renderJobs() {
+  const container = document.getElementById('jobs-list');
+  const noJobs = document.getElementById('no-jobs');
+
+  if (jobs.length === 0) {
+    noJobs.classList.remove('hidden');
+    container.querySelectorAll('.job-card').forEach(el => el.remove());
+    return;
+  }
+  noJobs.classList.add('hidden');
+
+  // Remove old cards
+  container.querySelectorAll('.job-card').forEach(el => el.remove());
+
+  jobs.forEach(job => {
+    const card = document.createElement('div');
+    card.className = 'job-card bg-gray-800 rounded-lg p-4 fade-in';
+    const elapsed = job.completedAt
+      ? ((new Date(job.completedAt) - new Date(job.createdAt)) / 1000).toFixed(1) + 's'
+      : job.estimatedTime || '...';
+
+    let resultsHtml = '';
+    if (job.status === 'completed' && job.results) {
+      const r = job.results;
+      resultsHtml = `
+        <div class="mt-3 pt-3 border-t border-gray-700 space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-gray-500">Compression Ratio</span>
+            <span class="text-green-400 font-medium">${r.compressionRatio || 'N/A'}</span>
+          </div>
+          ${r.original ? `<div class="flex items-center justify-between text-xs">
+            <span class="text-gray-500">Original</span>
+            <a href="${r.original.url}" target="_blank" class="text-brand-400 hover:underline">${formatBytes(r.original.size)}</a>
+          </div>` : ''}
+          ${(r.compressed || []).map(c => `<div class="flex items-center justify-between text-xs">
+            <span class="text-gray-500">${c.quality || c.bitrate || ''}</span>
+            <a href="${c.url}" target="_blank" class="text-brand-400 hover:underline">${formatBytes(c.size)}</a>
+          </div>`).join('')}
+          ${(r.thumbnails || []).length > 0 ? `<div class="flex items-center justify-between text-xs">
+            <span class="text-gray-500">Thumbnails</span>
+            <span class="text-gray-400">${r.thumbnails.length} generated</span>
+          </div>` : ''}
+        </div>`;
+    }
+
+    let errorHtml = '';
+    if (job.status === 'failed' && job.error) {
+      errorHtml = `<div class="mt-2 text-xs text-red-400 bg-red-500/10 rounded px-3 py-2">${job.error}</div>`;
+    }
+
+    card.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <span class="text-xl">${getTypeIcon(job.type)}</span>
+          <div>
+            <p class="text-sm font-medium">${job.fileName}</p>
+            <p class="text-xs text-gray-500">${formatBytes(job.fileSize)} &middot; ${elapsed}</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(job.status)}">
+            <span class="w-1.5 h-1.5 rounded-full ${getStatusDot(job.status)}"></span>
+            ${job.status}
+          </span>
+        </div>
+      </div>
+      ${job.status === 'processing' || job.status === 'queued' ? `
+        <div class="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+          <div class="progress-bar bg-brand-500 h-1.5 rounded-full" style="width: ${job.progress}%"></div>
+        </div>
+        <p class="text-xs text-gray-500 mt-1">${job.progress}% complete</p>
+      ` : ''}
+      ${resultsHtml}
+      ${errorHtml}
+      <p class="text-xs text-gray-600 mt-2 font-mono">${job.id}</p>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+// Toast notifications
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  const colors = {
+    success: 'bg-green-900/90 border-green-700 text-green-200',
+    error: 'bg-red-900/90 border-red-700 text-red-200',
+    info: 'bg-gray-800/90 border-gray-600 text-gray-200'
+  };
+  toast.className = `${colors[type] || colors.info} border rounded-lg px-4 py-3 text-sm shadow-lg fade-in backdrop-blur-sm`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transition = 'opacity 0.3s'; setTimeout(() => toast.remove(), 300); }, 4000);
+}
+
+// Job Lookup
+async function lookupJob() {
+  const id = document.getElementById('lookup-id').value.trim();
+  const resultDiv = document.getElementById('lookup-result');
+  if (!id) { showToast('Enter a job ID', 'error'); return; }
+  if (!getApiKey()) { showToast('Enter your API key first', 'error'); return; }
+
+  resultDiv.classList.remove('hidden');
+  resultDiv.innerHTML = '<p class="text-sm text-gray-500">Looking up...</p>';
+
+  try {
+    const res = await fetch(`${getBaseUrl()}/api/jobs/status/${id}`, {
+      headers: { 'X-API-Key': getApiKey() }
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      resultDiv.innerHTML = `<div class="bg-red-500/10 border border-red-800 rounded-lg p-3 text-sm text-red-400">${data.error || 'Job not found'}</div>`;
+      return;
+    }
+
+    const s = data;
+    resultDiv.innerHTML = `
+      <div class="bg-gray-800 rounded-lg p-4 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-sm font-medium">${s.jobId}</span>
+          <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(s.status)}">
+            <span class="w-1.5 h-1.5 rounded-full ${getStatusDot(s.status)}"></span>${s.status}
+          </span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs text-gray-400">
+          <div>Type: <span class="text-gray-200">${s.type || 'N/A'}</span></div>
+          <div>Progress: <span class="text-gray-200">${s.progress ?? 0}%</span></div>
+          <div>Created: <span class="text-gray-200">${s.createdAt ? new Date(s.createdAt).toLocaleString() : 'N/A'}</span></div>
+          <div>Completed: <span class="text-gray-200">${s.completedAt ? new Date(s.completedAt).toLocaleString() : '-'}</span></div>
+        </div>
+        ${s.error ? `<div class="text-xs text-red-400 bg-red-500/10 rounded px-3 py-2">${s.error}</div>` : ''}
+        ${s.results ? `<div class="text-xs text-green-400">Compression ratio: ${s.results.compressionRatio || 'N/A'}</div>` : ''}
+        <div class="flex gap-2 pt-2">
+          ${s.status === 'completed' || s.status === 'failed' ? `<button onclick="deleteJob('${s.jobId}')" class="px-3 py-1 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded text-xs transition-colors">Delete Job</button>` : ''}
+          ${s.status !== 'completed' && s.status !== 'failed' ? `<button onclick="document.getElementById('lookup-id').value='${s.jobId}';lookupJob()" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs transition-colors">Refresh</button>` : ''}
+        </div>
+      </div>`;
+  } catch (e) {
+    resultDiv.innerHTML = `<div class="bg-red-500/10 border border-red-800 rounded-lg p-3 text-sm text-red-400">Request failed: ${e.message}</div>`;
+  }
+}
+
+// Delete Job
+async function deleteJob(jobId) {
+  if (!confirm(`Delete job ${jobId} and all associated files?`)) return;
+  try {
+    const res = await fetch(`${getBaseUrl()}/api/jobs/delete/${jobId}`, {
+      method: 'DELETE',
+      headers: { 'X-API-Key': getApiKey() }
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Job deleted successfully', 'success');
+      const idx = jobs.findIndex(j => j.id === jobId);
+      if (idx !== -1) {
+        if (pollingIntervals[jobId]) { clearInterval(pollingIntervals[jobId]); delete pollingIntervals[jobId]; }
+        jobs.splice(idx, 1);
+        renderJobs();
+      }
+      // Refresh lookup if it was showing this job
+      const lookupInput = document.getElementById('lookup-id');
+      if (lookupInput.value.trim() === jobId) {
+        document.getElementById('lookup-result').innerHTML = '<div class="bg-gray-800 rounded-lg p-3 text-sm text-gray-400">Job deleted.</div>';
+      }
+    } else {
+      showToast(data.error || 'Failed to delete', 'error');
+    }
+  } catch (e) {
+    showToast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+// Auto health check on load
+setTimeout(checkHealth, 500);
+</script>
+
+</body>
+</html>
