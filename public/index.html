@@ -328,6 +328,13 @@ function saveStats() { localStorage.setItem('mc_stats', JSON.stringify(stats)); 
 function timeAgo(d) { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60) return s+'s ago'; if(s<3600) return Math.floor(s/60)+'m ago'; if(s<86400) return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 const MAX_JOBS = 100;
+async function safeJson(res) {
+  const ct = res.headers.get('content-type') || '';
+  const text = await res.text();
+  if (ct.includes('application/json')) { try { return JSON.parse(text); } catch { /* fall through */ } }
+  if (!res.ok) throw new Error(`Server error ${res.status}: ${text.slice(0, 120)}`);
+  try { return JSON.parse(text); } catch { throw new Error(`Unexpected response (${res.status}): ${text.slice(0, 120)}`); }
+}
 
 // ====== TOAST ======
 function showToast(message, type='info') {
@@ -386,7 +393,7 @@ async function checkHealth() {
     stats.latencies.push(latency);
     if (stats.latencies.length > 20) stats.latencies.shift();
     saveStats();
-    const data = await res.json();
+    const data = await safeJson(res);
     lastHealthData = data;
     const ok = data.status === 'healthy';
     indicator.innerHTML = `<span class="w-2 h-2 rounded-full ${ok?'bg-green-400 status-pulse healthy':'bg-red-400'}"></span><span>${ok?'Healthy':'Unhealthy'}</span>`;
@@ -469,7 +476,7 @@ async function startCompression() {
     if (qualitiesRaw) { const vals=qualitiesRaw.split(',').map(v=>parseInt(v.trim())).filter(v=>!isNaN(v)); formData.append(type==='audio'?'bitrates':'qualities', JSON.stringify(vals)); }
     if (thumbsRaw) { if(type==='image'){const s=thumbsRaw.split(',').map(v=>parseInt(v.trim())).filter(v=>!isNaN(v));formData.append('thumbnails',JSON.stringify(s));}else if(type==='video'){formData.append('thumbnails',thumbsRaw.trim());} }
     const res = await fetch(`${getBaseUrl()}/api/compress/${type}`, { method:'POST', headers:{'X-API-Key':getApiKey()}, body:formData });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (data.success && data.jobId) {
       addJob({id:data.jobId, type, fileName:selectedFile.name, fileSize:selectedFile.size, status:'queued', progress:0, createdAt:new Date().toISOString(), estimatedTime:data.estimatedTime});
       stats.total++; stats.bytesIn += selectedFile.size; saveStats(); updateStatsUI();
@@ -494,7 +501,7 @@ function startPolling(jobId) {
   pollingIntervals[jobId] = setInterval(async () => {
     try {
       const res = await fetch(`${getBaseUrl()}/api/jobs/status/${jobId}`, { headers:{'X-API-Key':getApiKey()} });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!data.success) return;
       const job = jobs.find(j=>j.id===jobId);
       if (!job) return;
@@ -625,7 +632,7 @@ async function lookupJob() {
   rd.innerHTML = '<p class="text-xs text-gray-500">Looking up...</p>';
   try {
     const res = await fetch(`${getBaseUrl()}/api/jobs/status/${id}`, { headers:{'X-API-Key':getApiKey()} });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (!data.success) { rd.innerHTML = `<div class="bg-red-500/10 border border-red-800 rounded-lg p-3 text-xs text-red-400">${data.error||'Job not found'}</div>`; return; }
     const s = data;
     rd.innerHTML = `<div class="bg-gray-800/50 rounded-lg p-3 space-y-2">
@@ -644,7 +651,7 @@ async function deleteJob(jobId) {
   if (!confirm('Delete this job and all files?')) return;
   try {
     const res = await fetch(`${getBaseUrl()}/api/jobs/delete/${jobId}`, { method:'DELETE', headers:{'X-API-Key':getApiKey()} });
-    const data = await res.json();
+    const data = await safeJson(res);
     if (data.success) {
       showToast('Job deleted','success');
       if(pollingIntervals[jobId]){clearInterval(pollingIntervals[jobId]);delete pollingIntervals[jobId];}
