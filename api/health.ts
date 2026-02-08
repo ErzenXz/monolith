@@ -1,3 +1,7 @@
+export const config = {
+  runtime: 'edge',
+};
+
 export default function handler(request: Request): Response {
   if (request.method === 'OPTIONS') {
     return new Response(null, {
