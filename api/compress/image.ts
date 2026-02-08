@@ -3,7 +3,7 @@ import { withAuth } from '../../middleware/auth.js';
 import { withRateLimit } from '../../middleware/ratelimit.js';
 import { storage } from '../../lib/storage.js';
 import { queue } from '../../lib/queue.js';
-import { compressor } from '../../lib/compressor/index.js';
+import { imageCompressor } from '../../lib/compressor/image.js';
 import {
   parseNativeFormData,
   getMediaType,
@@ -97,14 +97,13 @@ export async function processJob(jobId: string): Promise<void> {
     const parsedJob: Job = typeof job === 'string' ? JSON.parse(job) : (job as Job);
 
     const fileBuffer = Buffer.from(parsedJob.payload.file.buffer, 'base64');
-    const options = parsedJob.payload.options;
+    const options = parsedJob.payload.options as ImageCompressionOptions;
     const extension = parsedJob.payload.extension;
 
     await queue.updateJobStatus(jobId, 'processing', 30);
 
-    const compressionResult = (await compressor.compressMedia(
+    const compressionResult = (await imageCompressor.compress(
       fileBuffer,
-      'image',
       options
     )) as ImageCompressionResult;
 
