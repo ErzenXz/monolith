@@ -323,9 +323,11 @@ function getTypeIcon(t) { return {image:'<svg class="w-5 h-5 text-emerald-400" f
 function getTypeEmoji(t) { return {image:'🖼️',video:'🎬',audio:'🎵'}[t]||'📄'; }
 function getStatusColor(s) { return {queued:'bg-yellow-500/15 text-yellow-400',processing:'bg-blue-500/15 text-blue-400',completed:'bg-green-500/15 text-green-400',failed:'bg-red-500/15 text-red-400'}[s]||'bg-gray-500/15 text-gray-400'; }
 function getStatusDot(s) { return {queued:'bg-yellow-400',processing:'bg-blue-400',completed:'bg-green-400',failed:'bg-red-400'}[s]||'bg-gray-400'; }
-function saveJobs() { localStorage.setItem('mc_jobs', JSON.stringify(jobs.map(j => ({...j, results: j.results})))); }
+function saveJobs() { while(jobs.length>MAX_JOBS) jobs.pop(); localStorage.setItem('mc_jobs', JSON.stringify(jobs.map(j => ({...j, results: j.results})))); }
 function saveStats() { localStorage.setItem('mc_stats', JSON.stringify(stats)); }
 function timeAgo(d) { const s=Math.floor((Date.now()-new Date(d))/1000); if(s<60) return s+'s ago'; if(s<3600) return Math.floor(s/60)+'m ago'; if(s<86400) return Math.floor(s/3600)+'h ago'; return Math.floor(s/86400)+'d ago'; }
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+const MAX_JOBS = 100;
 
 // ====== TOAST ======
 function showToast(message, type='info') {
@@ -444,7 +446,7 @@ function handleFile(file) {
   if (type==='image') { fmt.innerHTML='<option value="webp">WebP</option><option value="jpeg">JPEG</option><option value="png">PNG</option><option value="avif">AVIF</option>'; qIn.placeholder='e.g. 80,60,40'; tIn.placeholder='e.g. 200,400'; tLbl.textContent='Thumbnail Sizes (px)'; tIn.parentElement.classList.remove('hidden'); }
   else if (type==='video') { fmt.innerHTML='<option value="mp4">MP4</option><option value="webm">WebM</option><option value="mov">MOV</option>'; qIn.placeholder='e.g. 1080,720,480'; tIn.placeholder='e.g. 3'; tLbl.textContent='Thumbnails Count'; tIn.parentElement.classList.remove('hidden'); }
   else if (type==='audio') { fmt.innerHTML='<option value="mp3">MP3</option><option value="aac">AAC</option><option value="opus">Opus</option><option value="wav">WAV</option>'; qIn.placeholder='e.g. 320,192,128'; tIn.parentElement.classList.add('hidden'); }
-  logActivity(`Selected: ${file.name} (${formatBytes(file.size)})`, 'info');
+  logActivity(`Selected: ${esc(file.name)} (${formatBytes(file.size)})`, 'info');
 }
 
 function clearFile() { selectedFile=null; fileInput.value=''; filePreview.classList.add('hidden'); optionsPanel.classList.add('hidden'); }
@@ -471,16 +473,16 @@ async function startCompression() {
     if (data.success && data.jobId) {
       addJob({id:data.jobId, type, fileName:selectedFile.name, fileSize:selectedFile.size, status:'queued', progress:0, createdAt:new Date().toISOString(), estimatedTime:data.estimatedTime});
       stats.total++; stats.bytesIn += selectedFile.size; saveStats(); updateStatsUI();
-      logActivity(`Queued ${type}: ${selectedFile.name}`, 'success');
+      logActivity(`Queued ${type}: ${esc(selectedFile.name)}`, 'success');
       showToast('Job queued: ' + data.jobId, 'success');
       clearFile();
     } else {
       showToast(data.error || 'Unknown error', 'error');
-      logActivity(`Upload failed: ${data.error}`, 'error');
+      logActivity(`Upload failed: ${esc(data.error)}`, 'error');
     }
   } catch (e) {
     showToast('Request failed: ' + e.message, 'error');
-    logActivity(`Upload error: ${e.message}`, 'error');
+    logActivity(`Upload error: ${esc(e.message)}`, 'error');
   } finally { btn.innerHTML = 'Start Compression'; btn.disabled = false; }
 }
 
@@ -503,12 +505,12 @@ function startPolling(jobId) {
         stats.completed++;
         if (data.results?.compressionRatio) { const r = parseFloat(data.results.compressionRatio); if(!isNaN(r)) stats.ratios.push(r); }
         saveStats(); updateStatsUI(); updateChart();
-        logActivity(`Completed: ${job.fileName} (${data.results?.compressionRatio || 'N/A'})`, 'success');
+        logActivity(`Completed: ${esc(job.fileName)} (${data.results?.compressionRatio || 'N/A'})`, 'success');
         showToast(`Completed: ${job.fileName}`, 'success');
       }
       if (data.status === 'failed' && prevStatus !== 'failed') {
         stats.failed++; saveStats(); updateStatsUI();
-        logActivity(`Failed: ${job.fileName} - ${data.error}`, 'error');
+        logActivity(`Failed: ${esc(job.fileName)} - ${esc(data.error)}`, 'error');
         showToast(`Failed: ${job.fileName}`, 'error');
       }
       if (data.status === 'completed' || data.status === 'failed') { clearInterval(pollingIntervals[jobId]); delete pollingIntervals[jobId]; }
@@ -556,13 +558,13 @@ function renderJobs() {
         ${(r.thumbnails||[]).length ? `<div class="flex justify-between text-[11px]"><span class="text-gray-500">Thumbnails</span><span class="text-gray-400">${r.thumbnails.length} generated</span></div>` : ''}
       </div>`;
     }
-    let errorHtml = job.status==='failed'&&job.error ? `<div class="mt-2 text-[11px] text-red-400 bg-red-500/10 rounded px-3 py-2">${job.error}</div>` : '';
+    let errorHtml = job.status==='failed'&&job.error ? `<div class="mt-2 text-[11px] text-red-400 bg-red-500/10 rounded px-3 py-2">${esc(job.error)}</div>` : '';
     card.innerHTML = `
       <div class="flex items-center justify-between mb-1.5">
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-lg bg-gray-700/50 flex items-center justify-center">${getTypeIcon(job.type)}</div>
           <div>
-            <p class="text-sm font-medium leading-tight">${job.fileName}</p>
+            <p class="text-sm font-medium leading-tight">${esc(job.fileName)}</p>
             <p class="text-[10px] text-gray-500">${formatBytes(job.fileSize)} &middot; ${elapsed}</p>
           </div>
         </div>
@@ -596,7 +598,7 @@ function updateChart() {
     const pctComp = Math.max(2, Math.round((compSize / origSize) * 100));
     return `<div class="space-y-1">
       <div class="flex items-center justify-between text-[11px]">
-        <span class="text-gray-300 truncate max-w-[200px]">${job.fileName}</span>
+        <span class="text-gray-300 truncate max-w-[200px]">${esc(job.fileName)}</span>
         <span class="text-green-400 font-medium">${r.compressionRatio||'--'}</span>
       </div>
       <div class="flex gap-1 h-4">
@@ -671,7 +673,7 @@ renderActivity();
 updateStatsUI();
 updateChart();
 // Resume polling for active jobs
-jobs.filter(j => j.status === 'queued' || j.status === 'processing').forEach(j => startPolling(j.id));
+if (getApiKey()) jobs.filter(j => j.status === 'queued' || j.status === 'processing').forEach(j => startPolling(j.id));
 // Auto health check
 setTimeout(checkHealth, 300);
 </script>
