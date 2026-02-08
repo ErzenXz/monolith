@@ -3,7 +3,6 @@ import { withAuth } from '../../middleware/auth.js';
 import { withRateLimit } from '../../middleware/ratelimit.js';
 import { storage } from '../../lib/storage.js';
 import { queue } from '../../lib/queue.js';
-import { imageCompressor } from '../../lib/compressor/image.js';
 import {
   parseNativeFormData,
   getMediaType,
@@ -102,10 +101,16 @@ export async function processJob(jobId: string): Promise<void> {
 
     await queue.updateJobStatus(jobId, 'processing', 30);
 
-    const compressionResult = (await imageCompressor.compress(
-      fileBuffer,
-      options
-    )) as ImageCompressionResult;
+    let compressionResult: ImageCompressionResult;
+    try {
+      const { imageCompressor } = await import('../../lib/compressor/image.js');
+      compressionResult = (await imageCompressor.compress(
+        fileBuffer,
+        options
+      )) as ImageCompressionResult;
+    } catch (error) {
+      throw new Error(`Image compressor failed to load: ${error instanceof Error ? error.message : String(error)}`);
+    }
 
     if (!compressionResult.success) {
       throw new Error('Compression failed');
