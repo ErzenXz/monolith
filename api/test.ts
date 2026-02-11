@@ -1,8 +1,8 @@
 export const config = {
-  runtime: 'edge'
+  runtime: 'nodejs'
 };
 
-export default function handler(request: Request): Response {
+export default function handler(): Response {
   return new Response(
     JSON.stringify({
       success: true,

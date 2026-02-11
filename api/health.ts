@@ -1,6 +1,6 @@
 // Monolith Health Check Endpoint
 export const config = {
-  runtime: 'edge'
+  runtime: 'nodejs'
 };
 
 export default function handler(request: Request): Response {
