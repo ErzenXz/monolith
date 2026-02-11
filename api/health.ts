@@ -15,9 +15,12 @@ export default function handler(request: Request): Response {
     });
   }
 
-  const maxFileSize = parseInt(process.env.MAX_FILE_SIZE ?? '') || 500 * 1024 * 1024;
-  const timeout = parseInt(process.env.TIMEOUT ?? '') || 300000;
-  const apiKeys = process.env.API_KEYS ? process.env.API_KEYS.split(',') : [];
+  const maxFileSizeEnv = process.env.MAX_FILE_SIZE;
+  const maxFileSize = maxFileSizeEnv ? parseInt(maxFileSizeEnv, 10) || 524288000 : 524288000;
+  const timeoutEnv = process.env.TIMEOUT;
+  const timeout = timeoutEnv ? parseInt(timeoutEnv, 10) || 300000 : 300000;
+  const apiKeysEnv = process.env.API_KEYS;
+  const apiKeys = apiKeysEnv ? apiKeysEnv.split(',') : [];
 
   const health = {
     status: 'healthy',
