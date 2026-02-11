@@ -45,5 +45,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "api", "lib", "middleware", "types"]
+  "exclude": ["node_modules", "dist"]
 }
