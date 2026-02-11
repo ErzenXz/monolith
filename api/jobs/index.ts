@@ -1,3 +1,8 @@
+export const config = {
+  runtime: 'edge'
+};
+
+import { kv } from '@vercel/kv';
 import { withAuth } from '../../middleware/auth.js';
 import { queue } from '../../lib/queue.js';
 import { successResponse, errorResponse, corsResponse } from '../../lib/utils.js';
