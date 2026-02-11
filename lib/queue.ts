@@ -11,7 +11,7 @@ import type {
   EnqueueOptions,
   EnqueueResult,
   JobStatusResult,
-  UpdateJobResult,
+  UpdateJobResult
 } from '../types/index.js';
 
 export class QueueService {
@@ -19,7 +19,7 @@ export class QueueService {
 
   constructor() {
     this.qstash = new Client({
-      token: process.env.UPSTASH_QSTASH_TOKEN ?? '',
+      token: process.env.UPSTASH_QSTASH_TOKEN ?? ''
     });
   }
 
@@ -39,7 +39,7 @@ export class QueueService {
       priority,
       createdAt: new Date().toISOString(),
       attempts: 0,
-      maxAttempts: config.queue.retryAttempts,
+      maxAttempts: config.queue.retryAttempts
     };
 
     await kv.set(`job:${jobId}`, JSON.stringify(job));
@@ -52,14 +52,14 @@ export class QueueService {
 
       const { messageId } = await this.qstash.publishJSON({
         url: `${baseUrl}/api/jobs/process`,
-        body: { jobId },
+        body: { jobId }
       });
 
       await kv.set(
         `job:${jobId}`,
         JSON.stringify({
           ...job,
-          qstashMessageId: messageId,
+          qstashMessageId: messageId
         })
       );
 
@@ -67,7 +67,7 @@ export class QueueService {
         success: true,
         jobId,
         status: 'queued',
-        estimatedTime: this.estimateTime(jobType),
+        estimatedTime: this.estimateTime(jobType)
       };
     } catch (error) {
       console.error('Enqueue error:', error);
@@ -76,7 +76,7 @@ export class QueueService {
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
@@ -87,7 +87,7 @@ export class QueueService {
     if (!jobData) {
       return {
         success: false,
-        error: 'Job not found',
+        error: 'Job not found'
       };
     }
 
@@ -102,8 +102,8 @@ export class QueueService {
         createdAt: job.createdAt,
         completedAt: job.completedAt,
         progress: job.progress ?? 0,
-        error: job.error,
-      },
+        error: job.error
+      }
     };
   }
 
@@ -127,7 +127,7 @@ export class QueueService {
       error,
       ...(status === 'completed' || status === 'failed'
         ? { completedAt: new Date().toISOString() }
-        : {}),
+        : {})
     };
 
     await kv.set(`job:${jobId}`, JSON.stringify(updatedJob));
@@ -153,7 +153,7 @@ export class QueueService {
       progress: 100,
       error: null,
       completedAt: new Date().toISOString(),
-      results: result,
+      results: result
     };
 
     await kv.set(`job:${jobId}`, JSON.stringify(updatedJob));
@@ -174,9 +174,36 @@ export class QueueService {
     const estimates: Record<JobType, string> = {
       image: '30-60 seconds',
       video: '2-5 minutes',
-      audio: '1-2 minutes',
+      audio: '1-2 minutes'
     };
     return estimates[jobType] ?? '1-3 minutes';
+  }
+
+  async listJobs(limit: number = 50, offset: number = 0): Promise<{ jobs: Job[]; total: number }> {
+    // Use scanIterator to get all job keys
+    const jobKeys: string[] = [];
+
+    for await (const key of kv.scanIterator({ match: 'job:*', count: 100 })) {
+      jobKeys.push(key);
+    }
+
+    // Get all job data
+    const jobs: Job[] = [];
+    for (const key of jobKeys) {
+      const jobData = await kv.get<string | Job>(key);
+      if (jobData) {
+        const job: Job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
+        jobs.push(job);
+      }
+    }
+
+    // Sort by createdAt descending
+    jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const total = jobs.length;
+    const paginatedJobs = jobs.slice(offset, offset + limit);
+
+    return { jobs: paginatedJobs, total };
   }
 }
 
