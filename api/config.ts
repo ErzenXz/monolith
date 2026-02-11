@@ -12,11 +12,13 @@ const timeout = Number.isNaN(timeoutParsed) ? 300000 : timeoutParsed;
 const apiKeysEnv = process.env.API_KEYS;
 const apiKeys = apiKeysEnv ? apiKeysEnv.split(',') : [];
 
+const webhookSecret = process.env.WEBHOOK_SECRET;
+
 export const config: AppConfig = {
   maxFileSize,
   timeout,
   apiKeys,
-  webhookSecret: process.env.WEBHOOK_SECRET,
+  webhookSecret,
 
   compression: {
     image: {
