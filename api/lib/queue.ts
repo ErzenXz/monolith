@@ -15,12 +15,17 @@ import type {
 } from '../types/index.js';
 
 export class QueueService {
-  private readonly qstash: Client;
+  private qstash: Client | null = null;
 
-  constructor() {
-    this.qstash = new Client({
-      token: process.env.UPSTASH_QSTASH_TOKEN ?? ''
-    });
+  private getQstashClient(): Client {
+    if (!this.qstash) {
+      const token = process.env.UPSTASH_QSTASH_TOKEN;
+      if (!token) {
+        throw new Error('UPSTASH_QSTASH_TOKEN is not configured');
+      }
+      this.qstash = new Client({ token });
+    }
+    return this.qstash;
   }
 
   async enqueue(
@@ -50,7 +55,7 @@ export class QueueService {
         ? `https://${process.env.VERCEL_URL}`
         : 'http://localhost:3000';
 
-      const { messageId } = await this.qstash.publishJSON({
+      const { messageId } = await this.getQstashClient().publishJSON({
         url: `${baseUrl}/api/jobs/process`,
         body: { jobId }
       });
