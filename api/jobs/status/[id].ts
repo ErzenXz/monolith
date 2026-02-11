@@ -1,10 +1,19 @@
+export const config = {
+  runtime: 'edge'
+};
+
 import { kv } from '@vercel/kv';
 import { withAuth } from '../../../middleware/auth.js';
 import { queue } from '../../../lib/queue.js';
-import { successResponse, errorResponse, fileNotFoundResponse, corsResponse } from '../../../lib/utils.js';
+import {
+  successResponse,
+  errorResponse,
+  fileNotFoundResponse,
+  corsResponse
+} from '../../../lib/utils.js';
 import type { Job, RequestHandler } from '../../../types/index.js';
 
-const handler: RequestHandler = async (request) => {
+const handler: RequestHandler = async request => {
   if (request.method === 'OPTIONS') return corsResponse();
   if (request.method !== 'GET') {
     return new Response('Method not allowed', { status: 405 });
@@ -27,7 +36,9 @@ const handler: RequestHandler = async (request) => {
 
     const job = await kv.get<string | Job>(`job:${jobId}`);
     const parsedJob: Job | null = job
-      ? typeof job === 'string' ? JSON.parse(job) : (job as Job)
+      ? typeof job === 'string'
+        ? JSON.parse(job)
+        : (job as Job)
       : null;
 
     return successResponse({
@@ -38,7 +49,7 @@ const handler: RequestHandler = async (request) => {
       completedAt: jobData.job?.completedAt,
       progress: jobData.job?.progress ?? 0,
       error: jobData.job?.error,
-      results: parsedJob?.results ?? null,
+      results: parsedJob?.results ?? null
     });
   } catch (error) {
     console.error('Job status error:', error);
