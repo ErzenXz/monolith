@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import type { ApiResponse } from '../../types/index.js';
 import { queue } from '../../lib/queue.js';
 
 const app = new Hono();

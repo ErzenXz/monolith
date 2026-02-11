@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
-import type { ParsedFile, MediaType, ApiResponse } from '../types/index.js';
+import type { ParsedFile, MediaType } from '../types/index.js';
 
 export interface NativeFormData {
   file: ParsedFile | null;

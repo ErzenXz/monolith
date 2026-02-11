@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { verifySignature } from '@upstash/qstash';
+import { Receiver } from '@upstash/qstash';
 import type { ApiResponse } from '../../types/index.js';
 import { queue } from '../../lib/queue.js';
 import { storage } from '../../lib/storage.js';
@@ -7,34 +7,50 @@ import { imageCompressor } from '../../lib/compressor/image.js';
 import { videoCompressor } from '../../lib/compressor/video.js';
 import { audioCompressor } from '../../lib/compressor/audio.js';
 import type { ImageCompressionResult, VideoCompressionResult, AudioCompressionResult } from '../../types/index.js';
+import { kv } from '@vercel/kv';
 
-const app = new Hono();
+interface ProcessEnv {
+  Variables: {
+    rawBody?: string;
+  };
+}
+
+const app = new Hono<ProcessEnv>();
 
 // Verify QStash signature for security
+const receiver = new Receiver({
+  currentSigningKey: process.env.UPSTASH_QSTASH_CURRENT_SIGNING_KEY,
+  nextSigningKey: process.env.UPSTASH_QSTASH_NEXT_SIGNING_KEY,
+});
+
 app.use('*', async (c, next) => {
   const signature = c.req.header('Upstash-Signature') ?? c.req.header('upstash-signature');
 
   if (signature && process.env.UPSTASH_QSTASH_CURRENT_SIGNING_KEY) {
     try {
-      const isValid = await verifySignature({
+      const body = await c.req.text();
+      const isValid = await receiver.verify({
         signature,
-        body: await c.req.text(),
-        signingKey: process.env.UPSTASH_QSTASH_CURRENT_SIGNING_KEY,
+        body,
       });
       if (!isValid) {
         return c.json({ success: false, error: 'Invalid signature' }, 401);
       }
+      // Re-parse the body after reading it for signature verification
+      c.set('rawBody', body);
     } catch (error) {
       console.error('Signature verification error:', error);
       // Continue anyway - QStash signatures can be tricky
     }
   }
 
-  await next();
+  return next();
 });
 
 app.post('/', async (c) => {
-  const body = await c.req.json<{ jobId: string }>();
+  // Use cached body if set by signature middleware, otherwise parse
+  const rawBody = c.get('rawBody');
+  const body = rawBody ? JSON.parse(rawBody) : await c.req.json<{ jobId: string }>();
   const { jobId } = body;
 
   if (!jobId) {
@@ -50,7 +66,7 @@ app.post('/', async (c) => {
   try {
     await queue.updateJobStatus(jobId, 'processing', 10);
 
-    const jobData = await (await import('../../lib/queue.js')).kv.get(`job:${jobId}`);
+    const jobData = await kv.get(`job:${jobId}`);
     const job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
 
     const fileBuffer = Buffer.from(job.payload.file.buffer, 'base64');
@@ -149,7 +165,7 @@ app.post('/', async (c) => {
       original: {
         url: originalUpload?.url ?? '',
         size: fileBuffer.length,
-        duration: 'originals' in compressionResult ? compressionResult.originals.duration : undefined,
+        duration: 'duration' in compressionResult.originals ? compressionResult.originals.duration : undefined,
       },
       compressed: 'compressed' in compressionResult
         ? compressionResult.compressed.map((c, i) => ({

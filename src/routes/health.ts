@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { config } from '../config.js';
-import { storage } from '../lib/storage.js';
 import { kv } from '@vercel/kv';
 import type { HealthCheckResponse } from '../types/index.js';
 

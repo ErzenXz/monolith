@@ -1,4 +1,5 @@
-import { type Context, type Next, HTTPException } from 'hono';
+import { type Context, type Next } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { config } from '../config.js';
 
 export interface AuthEnv {
@@ -37,5 +38,5 @@ export async function devAuthMiddleware(c: Context, next: Next) {
     await next();
     return;
   }
-  return authMiddleware(c, next);
+  await authMiddleware(c, next);
 }

@@ -24,7 +24,7 @@ export async function rateLimitMiddleware(c: Context, next: Next) {
 
   c.set('rateLimitRemaining', config.rateLimit.maxRequests - newValue);
 
-  await next();
+  return next();
 }
 
 export async function rateLimitHeaders(c: Context, next: Next) {

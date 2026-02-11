@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { ApiResponse, CompressionJobResponse, AudioCompressionOptions } from '../../types/index.js';
+import type { AuthEnv } from '../../middleware/auth.js';
 import {
   parseNativeFormData,
   getMediaType,
@@ -9,10 +10,10 @@ import {
 } from '../../lib/utils.js';
 import { queue } from '../../lib/queue.js';
 
-const app = new Hono();
+const app = new Hono<AuthEnv>();
 
 app.post('/', async (c) => {
-  const apiKey = c.get('apiKey');
+  const apiKey = c.get('apiKey') ?? '';
 
   try {
     const formData = await parseNativeFormData(c.req.raw);
