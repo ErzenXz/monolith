@@ -1,5 +1,6 @@
+// Monolith Health Check Endpoint
 export const config = {
-  runtime: 'edge',
+  runtime: 'edge'
 };
 
 export default function handler(request: Request): Response {
@@ -9,8 +10,8 @@ export default function handler(request: Request): Response {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization',
-      },
+        'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization'
+      }
     });
   }
 
@@ -25,20 +26,20 @@ export default function handler(request: Request): Response {
     services: {
       queue: Boolean(process.env.UPSTASH_QSTASH_TOKEN),
       storage: Boolean(process.env.BLOB_READ_WRITE_TOKEN),
-      rateLimit: Boolean(process.env.KV_REST_API_TOKEN),
+      rateLimit: Boolean(process.env.KV_REST_API_TOKEN)
     },
     config: {
       maxFileSize: `${maxFileSize / 1024 / 1024}MB`,
       timeout: `${timeout / 1000}s`,
-      apiKeysConfigured: apiKeys.length > 0,
-    },
+      apiKeysConfigured: apiKeys.length > 0
+    }
   };
 
   return new Response(JSON.stringify(health), {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
+      'Access-Control-Allow-Origin': '*'
+    }
   });
 }
