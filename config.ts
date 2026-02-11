@@ -1,29 +1,21 @@
 import type { AppConfig, JobStatus as JobStatusType } from './types/index.js';
 
-// Helper functions to safely parse env vars (avoids Vercel NFT parser issues)
-function parseMaxFileSize(): number {
-  const val = process.env.MAX_FILE_SIZE;
-  if (!val) return 524288000;
-  const parsed = parseInt(val, 10);
-  return isNaN(parsed) ? 524288000 : parsed;
-}
+// Parse env vars without helper calls to avoid static analysis issues
+const maxFileSizeEnv = process.env.MAX_FILE_SIZE;
+const maxFileSizeParsed = maxFileSizeEnv ? parseInt(maxFileSizeEnv, 10) : NaN;
+const maxFileSize = Number.isNaN(maxFileSizeParsed) ? 524288000 : maxFileSizeParsed;
 
-function parseTimeout(): number {
-  const val = process.env.TIMEOUT;
-  if (!val) return 300000;
-  const parsed = parseInt(val, 10);
-  return isNaN(parsed) ? 300000 : parsed;
-}
+const timeoutEnv = process.env.TIMEOUT;
+const timeoutParsed = timeoutEnv ? parseInt(timeoutEnv, 10) : NaN;
+const timeout = Number.isNaN(timeoutParsed) ? 300000 : timeoutParsed;
 
-function parseApiKeys(): string[] {
-  const val = process.env.API_KEYS;
-  return val ? val.split(',') : [];
-}
+const apiKeysEnv = process.env.API_KEYS;
+const apiKeys = apiKeysEnv ? apiKeysEnv.split(',') : [];
 
 export const config: AppConfig = {
-  maxFileSize: parseMaxFileSize(),
-  timeout: parseTimeout(),
-  apiKeys: parseApiKeys(),
+  maxFileSize,
+  timeout,
+  apiKeys,
   webhookSecret: process.env.WEBHOOK_SECRET,
 
   compression: {
