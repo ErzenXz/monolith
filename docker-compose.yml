@@ -1,0 +1,15 @@
+services:
+  monolith:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+      - BASE_URL=${BASE_URL:-http://localhost:3001}
+      - API_KEYS=${API_KEYS}
+      - UPSTASH_QSTASH_TOKEN=${UPSTASH_QSTASH_TOKEN}
+      - BLOB_READ_WRITE_TOKEN=${BLOB_READ_WRITE_TOKEN}
+      - KV_REST_API_URL=${KV_REST_API_URL}
+      - KV_REST_API_TOKEN=${KV_REST_API_TOKEN}
+    restart: unless-stopped

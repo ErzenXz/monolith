@@ -1,49 +1,49 @@
 {
-  "name": "media-compression-api",
+  "name": "monolith",
   "version": "2.0.0",
-  "description": "High-performance media compression API for Vercel with TypeScript support",
+  "description": "High-performance media compression API - Traditional Node.js server with Vercel services",
   "type": "module",
   "scripts": {
-    "dev": "npx serve public -l 3000",
-    "dev:vercel": "node -e \"console.log('Run directly: npx vercel dev')\"",
-    "build": "tsc --noEmit",
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
     "start": "node dist/server.js",
-    "deploy": "npx vercel --prod",
-    "deploy:preview": "npx vercel",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist .vercel"
+    "clean": "rm -rf dist"
   },
   "keywords": [
     "media",
     "compression",
-    "vercel",
     "api",
     "typescript",
     "image",
     "video",
     "audio",
     "sharp",
-    "ffmpeg"
+    "ffmpeg",
+    "hono",
+    "monolith"
   ],
-  "author": "",
+  "author": "ErzenXz",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/media-compressor.git"
+    "url": "https://github.com/ErzenXz/monolith.git"
   },
-  "homepage": "https://github.com/your-username/media-compressor#readme",
+  "homepage": "https://github.com/ErzenXz/monolith#readme",
   "bugs": {
-    "url": "https://github.com/your-username/media-compressor/issues"
+    "url": "https://github.com/ErzenXz/monolith/issues"
   },
   "dependencies": {
+    "@hono/node-server": "^1.13.7",
     "@upstash/qstash": "^2.9.0",
     "@vercel/blob": "^2.2.0",
     "@vercel/kv": "^3.0.0",
     "fluent-ffmpeg": "^2.1.3",
+    "hono": "^4.6.14",
     "sharp": "^0.34.5"
   },
   "devDependencies": {
@@ -52,12 +52,11 @@
     "@types/node": "^25.2.2",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
-    "@vercel/node": "^5.5.33",
     "eslint": "^9.39.2",
     "globals": "^17.3.0",
     "prettier": "^3.8.1",
-    "typescript": "^5.9.3",
-    "vercel": "^50.13.2"
+    "tsx": "^4.19.2",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=20.0.0"
