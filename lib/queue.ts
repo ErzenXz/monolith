@@ -180,30 +180,35 @@ export class QueueService {
   }
 
   async listJobs(limit: number = 50, offset: number = 0): Promise<{ jobs: Job[]; total: number }> {
-    // Use scanIterator to get all job keys
-    const jobKeys: string[] = [];
+    try {
+      // Use keys method to get all job keys matching pattern
+      const jobKeys = await kv.keys('job:*');
 
-    for await (const key of kv.scanIterator({ match: 'job:*', count: 100 })) {
-      jobKeys.push(key);
-    }
-
-    // Get all job data
-    const jobs: Job[] = [];
-    for (const key of jobKeys) {
-      const jobData = await kv.get<string | Job>(key);
-      if (jobData) {
-        const job: Job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
-        jobs.push(job);
+      // Get all job data
+      const jobs: Job[] = [];
+      for (const key of jobKeys) {
+        try {
+          const jobData = await kv.get<string | Job>(key);
+          if (jobData) {
+            const job: Job = typeof jobData === 'string' ? JSON.parse(jobData) : jobData;
+            jobs.push(job);
+          }
+        } catch (e) {
+          console.error(`Error fetching job ${key}:`, e);
+        }
       }
+
+      // Sort by createdAt descending
+      jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      const total = jobs.length;
+      const paginatedJobs = jobs.slice(offset, offset + limit);
+
+      return { jobs: paginatedJobs, total };
+    } catch (error) {
+      console.error('listJobs error:', error);
+      return { jobs: [], total: 0 };
     }
-
-    // Sort by createdAt descending
-    jobs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-    const total = jobs.length;
-    const paginatedJobs = jobs.slice(offset, offset + limit);
-
-    return { jobs: paginatedJobs, total };
   }
 }
 
